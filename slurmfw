@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+
+import sys
+import subprocess
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODULE_DIR = os.path.join(BASE_DIR, "preprocessing")
+
+
+def run_module(script_name):
+    script_path = os.path.join(MODULE_DIR, script_name)
+
+    if not os.path.exists(script_path):
+        print(f"ERROR: {script_name} not found")
+        sys.exit(1)
+
+    # Proper execution (NO shell=True)
+    result = subprocess.run(
+        ["python3", script_path],
+    )
+
+    # Propagate exit code
+    sys.exit(result.returncode)
+
+def print_usage():
+    print("Usage:")
+    print("  sudo python3 slurmfw.py install")
+    print("  sudo python3 slurmfw.py cleanup")
+    print("  sudo python3 slurmfw.py repair")
+    print("  sudo python3 slurmfw.py status")
+
+
+if __name__ == "__main__":
+
+    if len(sys.argv) != 2:
+        print_usage()
+        sys.exit(1)
+
+    command = sys.argv[1]
+
+    if command == "install":
+        run_module("install_slurm.py")
+
+    elif command == "cleanup":
+        run_module("remove_slurm.py")
+
+    elif command == "repair":
+        run_module("repair_slurm.py")
+
+    elif command == "status":
+        run_module("status_slurm.py")
+
+    else:
+        print("Invalid command.")
+        print_usage()
+        sys.exit(1)

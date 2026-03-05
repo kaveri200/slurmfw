@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+
+# Slurm source
+slurm-*
+*.tar.gz
+*.tar.bz2
+
+# Build directories
+build/
+tmp/
+opt/
+
+# Slurm job outputs
+slurm-*.out
