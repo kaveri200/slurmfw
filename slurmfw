@@ -1,57 +1,288 @@
 #!/usr/bin/env python3
 
-import sys
+import argparse
 import subprocess
 import os
+import sys
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODULE_DIR = os.path.join(BASE_DIR, "preprocessing")
+VERSION = "1.0"
+
+BASE_DIR = "/home/kaveri/slurmfw"
+
+SLURM_DIR = os.path.join(BASE_DIR, "preprocessing")
+MODULE_DIR = os.path.join(BASE_DIR, "modules")
+CLEANUP_DIR = os.path.join(BASE_DIR, "cleanup")
 
 
-def run_module(script_name):
-    script_path = os.path.join(MODULE_DIR, script_name)
+# -------------------------------------------------
+# Utility
+# -------------------------------------------------
+
+def run_script(directory, script):
+
+    script_path = os.path.join(directory, script)
 
     if not os.path.exists(script_path):
-        print(f"ERROR: {script_name} not found")
+        print(f"ERROR: {script} not found in {directory}")
         sys.exit(1)
 
-    # Proper execution (NO shell=True)
-    result = subprocess.run(
-        ["python3", script_path],
+    subprocess.run(["python3", script_path])
+
+
+# -------------------------------------------------
+# INSTALL
+# -------------------------------------------------
+
+def install_component(component):
+
+    if component == "slurm":
+        run_script(SLURM_DIR, "install_slurm.py")
+
+    elif component == "gcc":
+        run_script(MODULE_DIR, "install_gcc.py")
+
+    elif component == "python":
+        run_script(MODULE_DIR, "install_python.py")
+
+    elif component == "openmp":
+        run_script(MODULE_DIR, "install_openmp.py")
+
+    else:
+        print("Unknown component")
+        print("Run 'slurmfw list' to see available components")
+
+
+# -------------------------------------------------
+# CLEANUP
+# -------------------------------------------------
+
+def cleanup_component(component):
+
+    if component == "slurm":
+        run_script(SLURM_DIR, "remove_slurm.py")
+
+    elif component == "gcc":
+        run_script(CLEANUP_DIR, "remove_gcc.py")
+
+    elif component == "python":
+        run_script(CLEANUP_DIR, "remove_python.py")
+
+    elif component == "openmp":
+        run_script(CLEANUP_DIR, "remove_openmp.py")
+
+    else:
+        print("Unknown component")
+
+
+# -------------------------------------------------
+# STATUS
+# -------------------------------------------------
+
+def status_slurm():
+
+    print("\nChecking Slurm status...\n")
+
+    subprocess.run("systemctl is-active slurmctld", shell=True)
+    subprocess.run("systemctl is-active slurmd", shell=True)
+
+    print("\nCluster info:\n")
+    subprocess.run("sinfo", shell=True)
+
+
+# -------------------------------------------------
+# REPAIR
+# -------------------------------------------------
+
+def repair_slurm():
+    run_script(SLURM_DIR, "repair_slurm.py")
+
+
+# -------------------------------------------------
+# LIST
+# -------------------------------------------------
+
+def list_components():
+
+    print("""
+Available Components
+
+Core
+  slurm     Slurm job scheduler
+
+Modules
+  gcc       GNU C/C++ compiler
+  python    Python runtime
+  openmp    OpenMP parallel runtime
+""")
+
+
+# -------------------------------------------------
+# DOCTOR
+# -------------------------------------------------
+
+def doctor():
+
+    print("\nRunning system diagnostics...\n")
+
+    print("Checking Munge service")
+    subprocess.run("systemctl is-active munge", shell=True)
+
+    print("\nChecking Slurm controller")
+    subprocess.run("systemctl is-active slurmctld", shell=True)
+
+    print("\nChecking Slurm node daemon")
+    subprocess.run("systemctl is-active slurmd", shell=True)
+
+    print("\nChecking cluster status")
+    subprocess.run("sinfo", shell=True)
+
+    print("\nChecking disk usage")
+    subprocess.run("df -h", shell=True)
+
+
+# -------------------------------------------------
+# INFO
+# -------------------------------------------------
+
+def info():
+
+    print("""
+SLURMFW Installation Paths
+
+Slurm installation:
+  /usr/local/slurm
+
+Framework directory:
+  /home/kaveri/slurmfw
+
+Modules installed in:
+  /opt/slurmfw
+
+Build directory:
+  /opt/slurmfw/build
+
+Source directory:
+  /opt/slurmfw/src
+""")
+
+
+# -------------------------------------------------
+# TEST JOB
+# -------------------------------------------------
+
+def test_job():
+
+    print("\nSubmitting test Slurm job...\n")
+
+    subprocess.run('sbatch --wrap="hostname"', shell=True)
+
+    print("\nWaiting for job output...\n")
+
+    subprocess.run("sleep 3", shell=True)
+
+    subprocess.run("cat slurm-*.out", shell=True)
+
+
+# -------------------------------------------------
+# CLI
+# -------------------------------------------------
+
+def main():
+
+    parser = argparse.ArgumentParser(
+        prog="slurmfw",
+        description="SLURMFW - HPC Environment Setup Framework"
     )
 
-    # Propagate exit code
-    sys.exit(result.returncode)
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"slurmfw {VERSION}"
+    )
 
-def print_usage():
-    print("Usage:")
-    print("  sudo python3 slurmfw.py install")
-    print("  sudo python3 slurmfw.py cleanup")
-    print("  sudo python3 slurmfw.py repair")
-    print("  sudo python3 slurmfw.py status")
+    subparsers = parser.add_subparsers(dest="command")
+
+    # install
+    install_parser = subparsers.add_parser(
+        "install",
+        help="Install a component"
+    )
+    install_parser.add_argument("component")
+
+    # cleanup
+    cleanup_parser = subparsers.add_parser(
+        "cleanup",
+        help="Remove a component installed by slurmfw"
+    )
+    cleanup_parser.add_argument("component")
+
+    # repair
+    repair_parser = subparsers.add_parser(
+        "repair",
+        help="Repair Slurm installation"
+    )
+    repair_parser.add_argument("component")
+
+    # status
+    status_parser = subparsers.add_parser(
+        "status",
+        help="Check Slurm cluster status"
+    )
+    status_parser.add_argument("component")
+
+    # list
+    subparsers.add_parser(
+        "list",
+        help="Show available components"
+    )
+
+    # doctor
+    subparsers.add_parser(
+        "doctor",
+        help="Run system diagnostics"
+    )
+
+    # info
+    subparsers.add_parser(
+        "info",
+        help="Show framework paths"
+    )
+
+    # test
+    subparsers.add_parser(
+        "test",
+        help="Submit a test Slurm job"
+    )
+
+    args = parser.parse_args()
+
+    if args.command == "install":
+        install_component(args.component)
+
+    elif args.command == "cleanup":
+        cleanup_component(args.component)
+
+    elif args.command == "repair":
+        repair_slurm()
+
+    elif args.command == "status":
+        status_slurm()
+
+    elif args.command == "list":
+        list_components()
+
+    elif args.command == "doctor":
+        doctor()
+
+    elif args.command == "info":
+        info()
+
+    elif args.command == "test":
+        test_job()
+
+    else:
+        parser.print_help()
 
 
 if __name__ == "__main__":
-
-    if len(sys.argv) != 2:
-        print_usage()
-        sys.exit(1)
-
-    command = sys.argv[1]
-
-    if command == "install":
-        run_module("install_slurm.py")
-
-    elif command == "cleanup":
-        run_module("remove_slurm.py")
-
-    elif command == "repair":
-        run_module("repair_slurm.py")
-
-    elif command == "status":
-        run_module("status_slurm.py")
-
-    else:
-        print("Invalid command.")
-        print_usage()
-        sys.exit(1)
+    main()
